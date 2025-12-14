@@ -1,0 +1,5 @@
+{
+  "name": "RAG Chatbot",
+  "description": "A modern, responsive chatbot interface connected to a RAG backend service.",
+  "requestFramePermissions": []
+}
