@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Chatbot</title>
+    <title>RAG Chatbot - Centre For Police Technology</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script>
       tailwind.config = {
@@ -20,6 +20,8 @@
             animation: {
               'fade-in': 'fadeIn 0.3s ease-out',
               'fade-in-up': 'fadeInUp 0.4s ease-out forwards',
+              'typing-bounce': 'typingBounce 1.4s infinite ease-in-out both',
+              'greeting': 'greeting 1s cubic-bezier(0.25, 1, 0.5, 1) forwards',
             },
             keyframes: {
               fadeIn: {
@@ -29,6 +31,14 @@
               fadeInUp: {
                 '0%': { opacity: '0', transform: 'translateY(10px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              typingBounce: {
+                '0%, 80%, 100%': { transform: 'scale(0)' },
+                '40%': { transform: 'scale(1)' },
+              },
+              greeting: {
+                '0%': { opacity: '0', transform: 'translateY(20px) scale(0.98)' },
+                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
               }
             }
           },
@@ -47,8 +57,58 @@
             background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background-color: rgba(156, 163, 175, 0.5);
+            background-color: rgba(156, 163, 175, 0.4);
             border-radius: 20px;
+        }
+
+        /* Improved List Spacing for Professional Layout */
+        .prose ol {
+            list-style-type: none;
+            counter-reset: item;
+            padding-left: 0;
+            width: 100%;
+        }
+
+        .prose ol > li {
+            counter-increment: item;
+            margin-bottom: 3rem !important; /* Significant separation */
+            position: relative;
+            padding-left: 2.25rem;
+            width: 100%;
+        }
+
+        .prose ol > li::before {
+            content: counter(item) ".";
+            position: absolute;
+            left: 0;
+            top: 0;
+            font-weight: 800;
+            color: #2563eb; /* Blue-600 */
+            font-size: 1.1em;
+        }
+
+        .dark .prose ol > li::before {
+            color: #60a5fa; /* Blue-400 */
+        }
+
+        /* Ensure paragraphs inside list items don't have massive margins */
+        .prose li p {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0 !important;
+        }
+
+        .prose p {
+            margin-top: 0.75rem !important;
+            margin-bottom: 1.5rem !important;
+            width: 100%;
+        }
+
+        /* Typography refinements */
+        .prose strong {
+            color: #1e3a8a !important; /* Dark blue */
+        }
+        .dark .prose strong {
+            color: #93c5fd !important; /* Light blue */
         }
     </style>
 <script type="importmap">
@@ -60,12 +120,13 @@
     "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
     "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
     "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
   }
 }
 </script>
 </head>
-<body class="bg-gray-100 dark:bg-gray-950 transition-colors duration-300">
+<body class="bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
     <!-- React Root Container -->
     <div id="root"></div>
     

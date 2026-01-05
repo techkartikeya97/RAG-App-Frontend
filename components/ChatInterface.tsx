@@ -1,22 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Paperclip } from 'lucide-react';
+import { Send, Sparkles, Mic, Square } from 'lucide-react';
 import { Message, ChatResponse, ChatRequest } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { TypingIndicator } from './TypingIndicator';
 
-export const ChatInterface: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: "Hello! I am your professional assistant. I can help you with analysis, coding, and general questions. How can I assist you today?",
-      sender: 'bot',
-      timestamp: new Date(),
-    },
-  ]);
+interface ChatInterfaceProps {
+  session: any;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+}
+
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ session, messages, setMessages }) => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -26,13 +28,49 @@ export const ChatInterface: React.FC = () => {
     scrollToBottom();
   }, [messages, isLoading]);
 
+  const handleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice input is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        setInputValue((prev) => prev + (prev.length > 0 && !prev.endsWith(' ') ? ' ' : '') + transcript);
+        inputRef.current?.focus();
+      }
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
     const userText = inputValue.trim();
     setInputValue('');
     
-    // Add User Message
     const newUserMessage: Message = {
       id: Date.now().toString(),
       text: userText,
@@ -43,6 +81,9 @@ export const ChatInterface: React.FC = () => {
     setMessages((prev) => [...prev, newUserMessage]);
     setIsLoading(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const payload: ChatRequest = { query: userText };
       
@@ -50,8 +91,11 @@ export const ChatInterface: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // SECURE: Adding the Supabase JWT to verify user on the backend
+          'Authorization': `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -68,7 +112,8 @@ export const ChatInterface: React.FC = () => {
       };
 
       setMessages((prev) => [...prev, botMessage]);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error("Chat Error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -80,7 +125,7 @@ export const ChatInterface: React.FC = () => {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-      // Focus input again for better UX on desktop
+      abortControllerRef.current = null;
       if (window.matchMedia('(min-width: 768px)').matches) {
         inputRef.current?.focus();
       }
@@ -96,72 +141,37 @@ export const ChatInterface: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-transparent relative">
-      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 scroll-smooth z-10">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
-        
-        {isLoading && (
-          <div className="flex justify-start animate-fade-in-up">
-            <TypingIndicator />
-          </div>
-        )}
-        
+        {isLoading && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Glassy Input Area */}
-      <div className="p-5 bg-white/60 dark:bg-gray-900/60 backdrop-blur-2xl border-t border-white/40 dark:border-gray-700/40 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.2)] relative z-20 transition-colors duration-300">
+      <div className="p-5 bg-white/60 dark:bg-gray-900/60 backdrop-blur-2xl border-t border-white/40 dark:border-gray-700/40 relative z-20">
         <div className="relative flex items-center gap-3 max-w-4xl mx-auto">
-          
-          <div className="relative w-full group flex items-center gap-3">
-             {/* Decorative Clip Button */}
-            <button className="p-2.5 rounded-full text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white/50 dark:hover:bg-gray-800 transition-all duration-200 hidden sm:block">
-               <Paperclip size={20} strokeWidth={2} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isListening ? "Listening..." : "Message..."}
+            disabled={isLoading}
+            className="w-full pl-6 pr-28 py-4 bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl border border-white/60 dark:border-gray-700/50 text-gray-800 dark:text-gray-100 rounded-[1.25rem] outline-none transition-all focus:ring-4 focus:ring-blue-500/10 disabled:opacity-60"
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <button onClick={handleVoiceInput} disabled={isLoading} className={`p-2.5 rounded-xl transition-all ${isListening ? 'text-red-500 bg-red-100 animate-pulse' : 'text-gray-400'}`}>
+              <Mic size={18} />
             </button>
-
-            <div className="relative w-full transition-transform duration-200">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Message..."
-                disabled={isLoading}
-                className="w-full pl-6 pr-14 py-4 
-                          bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl 
-                          border border-white/60 dark:border-gray-700/50
-                          text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-base
-                          rounded-[1.25rem] 
-                          shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] dark:shadow-none
-                          transition-all duration-300 ease-out
-                          hover:bg-white/60 dark:hover:bg-gray-800/60 hover:border-white/80 dark:hover:border-gray-600 hover:shadow-sm
-                          focus:bg-white/80 dark:focus:bg-gray-800/80 focus:border-blue-400/30 dark:focus:border-blue-500/30
-                          focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20
-                          focus:shadow-[0_0_20px_rgba(59,130,246,0.1)] 
-                          outline-none
-                          disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-              
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100 transition-all duration-200 shadow-md flex items-center justify-center z-10"
-                aria-label="Send message"
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Send size={18} strokeWidth={2.5} />
-                )}
-              </button>
-            </div>
+            <button onClick={isLoading ? handleStopGeneration : handleSendMessage} disabled={!inputValue.trim() && !isLoading} className={`p-2.5 text-white rounded-xl shadow-md transition-all ${isLoading ? 'bg-red-500' : 'bg-blue-600'}`}>
+              {isLoading ? <Square size={16} fill="currentColor" /> : <Send size={18} />}
+            </button>
           </div>
         </div>
-        <div className="flex justify-center mt-3 gap-1.5 text-[10px] text-gray-400 dark:text-gray-500 font-medium tracking-wide">
-          <Sparkles size={11} className="text-blue-500 dark:text-blue-400" />
+        <div className="flex justify-center mt-3 gap-1.5 text-[10px] text-gray-400 font-medium">
+          <Sparkles size={11} className="text-blue-500" />
           <span>AI-generated content may be inaccurate.</span>
         </div>
       </div>

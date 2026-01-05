@@ -6,6 +6,7 @@ export interface Message {
   sender: Sender;
   timestamp: Date;
   isError?: boolean;
+  isInitial?: boolean;
 }
 
 export interface ChatResponse {
